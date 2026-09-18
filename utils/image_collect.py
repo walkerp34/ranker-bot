@@ -61,6 +61,10 @@ async def prompt_multi_image(interaction: discord.Interaction, prompt_text: str,
         attachment = message.attachments[0]
         data = await attachment.read()
         results.append((attachment.url, data))
+        await interaction.followup.send(
+            f"Got that image ({len(results)} so far). Upload another, or type `done` to finish.",
+            ephemeral=True,
+        )
 
     return results
 

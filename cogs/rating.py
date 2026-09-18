@@ -98,7 +98,8 @@ class Rating(commands.Cog):
         if more:
             image_urls = image_urls + [url for url, _ in more]
             view.image_urls = image_urls
-            embeds = build_results_embeds(title, 0.0, 0, image_urls)
+            avg, count = await db.get_average_rating(post_id)
+            embeds = build_results_embeds(title, avg, count, image_urls)
             await message.edit(embeds=embeds)
 
 
