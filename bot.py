@@ -19,11 +19,11 @@ log = logging.getLogger("ranker-bot")
 
 # Which permissions the bot needs from Discord to function.
 intents = discord.Intents.default()
-# Needed so the bot can see attachments in follow-up messages when
-# collecting images for poll/tier-list/rating/budget/team builder
-# (see utils/image_collect.py). Must also be turned on in the
-# Discord Developer Portal: Bot tab -> Privileged Gateway Intents ->
-# Message Content Intent.
+# Needed so the bot can see names/attachments in follow-up messages
+# when collecting options for poll/tier-list/this-or-that/team builder
+# and images for rating (see utils/image_collect.py). Must also be
+# turned on in the Discord Developer Portal: Bot tab -> Privileged
+# Gateway Intents -> Message Content Intent.
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -38,7 +38,6 @@ STARTUP_COGS = [
     "cogs.leaderboard",
     "cogs.moderation",
     "cogs.builder",
-    "cogs.home",
 ]
 
 

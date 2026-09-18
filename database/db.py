@@ -28,8 +28,8 @@ CREATE TABLE IF NOT EXISTS posts (
     creator_id  INTEGER NOT NULL,
     mode        TEXT NOT NULL,
     question    TEXT NOT NULL,
-    options     TEXT NOT NULL,   -- JSON list of option labels (or {label, image_url} for this-or-that)
-    image_url   TEXT,            -- optional single image (poll, rating)
+    options     TEXT NOT NULL,   -- JSON list of {label, image_urls: [...]} (or category dicts for team builder)
+    image_url   TEXT,            -- unused; kept for backward compatibility with older rows
     created_at  INTEGER NOT NULL
 );
 
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS tier_assignments (
     post_id     INTEGER NOT NULL,
     user_id     INTEGER NOT NULL,
     item        TEXT NOT NULL,
-    tier        TEXT NOT NULL,   -- S / A / B / C / D / F, or "selected" for budget/team builder
+    tier        TEXT NOT NULL,   -- S / A / B / C / D / F, or "selected" for team builder
     created_at  INTEGER NOT NULL,
     PRIMARY KEY (post_id, user_id, item)
 );
@@ -101,24 +101,6 @@ async def get_post(post_id):
         ) as cursor:
             row = await cursor.fetchone()
             return dict(row) if row else None
-
-
-async def update_post_image(post_id, image_url):
-    """Sets a post's single image after creation (used when an image is
-    collected via follow-up message after a modal-based creation)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("UPDATE posts SET image_url = ? WHERE post_id = ?", (image_url, post_id))
-        await db.commit()
-
-
-async def update_post_options(post_id, options):
-    """Overwrites a post's options JSON (used when per-item images get added
-    after creation, for tier list / budget builder / team builder)."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "UPDATE posts SET options = ? WHERE post_id = ?", (json.dumps(options), post_id)
-        )
-        await db.commit()
 
 
 # ---- single-choice modes (poll, this-or-that, rating) ----
@@ -201,7 +183,7 @@ async def get_tier_summary(post_id):
 
 async def clear_tier_selection(post_id, user_id):
     """Removes all of one user's tier_assignments rows for a post. Used by
-    budget/team builder to reset a user's picks before saving new ones."""
+    team builder to reset a user's picks before saving new ones."""
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(
             "DELETE FROM tier_assignments WHERE post_id = ? AND user_id = ?",
@@ -211,8 +193,8 @@ async def clear_tier_selection(post_id, user_id):
 
 
 async def count_distinct_tier_users(post_id):
-    """How many distinct users have submitted anything for this post (tier list,
-    budget builder, or team builder)."""
+    """How many distinct users have submitted anything for this post (tier list
+    or team builder)."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
             "SELECT COUNT(DISTINCT user_id) FROM tier_assignments WHERE post_id = ?",
@@ -257,19 +239,6 @@ async def set_required_role(guild_id, role_id):
 
 
 # ---- leaderboard ----
-
-async def get_recent_posts(guild_id, limit=5):
-    """Most recently created posts in a guild, for the Interactive Home 'browse' button."""
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            """SELECT mode, question, channel_id, message_id FROM posts
-               WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?""",
-            (guild_id, limit),
-        ) as cursor:
-            rows = await cursor.fetchall()
-            return [dict(row) for row in rows]
-
 
 async def get_rating_leaderboard(guild_id, limit=10):
     """Top rated items (rating-mode posts) in a guild, by average score."""

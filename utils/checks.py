@@ -1,6 +1,6 @@
 """
 Shared "can this person create a post right now?" check, used by every
-creation command (poll, this-or-that, tier list, rating, budget/team
+creation command (poll, this-or-that, tier list, rating, team
 builder). Centralized here so moderator settings apply consistently
 everywhere instead of being re-implemented per mode.
 """
