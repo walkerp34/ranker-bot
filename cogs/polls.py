@@ -1,12 +1,10 @@
 """
 Poll mode ("This or That" / Multiple Choice).
 
-Options are added one at a time in a chat conversation after /poll is
-run (see utils/image_collect.collect_named_options), each with its own
-image(s). For display, all options' images are flattened into one
-list - Discord lets one message carry several embeds, so each extra
-photo just gets its own image-only embed alongside the main results
-embed, rather than compositing them into one picture.
+Supports multiple images per poll (not per option) - Discord lets one
+message carry several embeds, so each extra photo just gets its own
+image-only embed alongside the main results embed, rather than
+compositing them into one picture.
 """
 
 import discord
@@ -15,10 +13,9 @@ from discord.ext import commands
 
 from database import db
 from utils import checks
-from utils.image_collect import collect_named_options
+from utils.image_collect import prompt_multi_image
 
 MAX_EXTRA_IMAGE_EMBEDS = 9  # + 1 main embed = 10, Discord's per-message cap
-MAX_OPTIONS = 25  # Discord's max components in a View (5 rows x 5 buttons)
 
 
 def build_results_embeds(question: str, options: list[str], counts: dict[str, int],
@@ -77,24 +74,36 @@ class Polls(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="poll", description="Create a poll - you'll be asked for options one at a time")
-    @app_commands.describe(question="The question to ask")
-    async def poll(self, interaction: discord.Interaction, question: str):
+    @app_commands.command(name="poll", description="Create a poll with up to 4 options")
+    @app_commands.describe(
+        question="The question to ask",
+        option1="First option",
+        option2="Second option",
+        option3="Optional third option",
+        option4="Optional fourth option",
+        image="Optional image to show with the poll (you can add more after creating it)",
+    )
+    async def poll(
+        self,
+        interaction: discord.Interaction,
+        question: str,
+        option1: str,
+        option2: str,
+        option3: str = None,
+        option4: str = None,
+        image: discord.Attachment = None,
+    ):
+        options = [o for o in [option1, option2, option3, option4] if o]
+
         allowed, reason = await checks.check_can_post(interaction)
         if not allowed:
             await interaction.response.send_message(reason, ephemeral=True)
             return
 
+        image_urls = [image.url] if image else []
+
         await interaction.response.send_message("Creating poll...")
         message = await interaction.original_response()
-
-        options = await collect_named_options(interaction, "option", min_items=2, max_items=MAX_OPTIONS)
-        if len(options) < 2:
-            await message.edit(content="Poll creation cancelled — didn't get at least 2 options in time.")
-            return
-
-        labels = [o["label"] for o in options]
-        image_urls = [url for o in options for url in o["image_urls"]]
 
         post_id = await db.create_post(
             message_id=message.id,
@@ -106,9 +115,20 @@ class Polls(commands.Cog):
             options=options,
         )
 
-        view = PollView(post_id, question, labels, image_urls)
-        embeds = build_results_embeds(question, labels, {}, image_urls)
+        view = PollView(post_id, question, options, image_urls)
+        embeds = build_results_embeds(question, options, {}, image_urls)
         await message.edit(content=None, embeds=embeds, view=view)
+
+        more = await prompt_multi_image(
+            interaction,
+            "Want to add more image(s) to this poll? Upload them one at a time, "
+            "type `done` when finished, or ignore to skip (60s per upload).",
+        )
+        if more:
+            image_urls = image_urls + [url for url, _ in more]
+            view.image_urls = image_urls
+            embeds = build_results_embeds(question, options, {}, image_urls)
+            await message.edit(embeds=embeds)
 
 
 async def setup(bot: commands.Bot):

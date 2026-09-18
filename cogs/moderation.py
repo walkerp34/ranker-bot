@@ -3,7 +3,7 @@ Moderator controls.
 
 Two settings per server, stored in guild_settings:
   - posting_paused: when on, every creation command (poll, tier list,
-    this-or-that, rating, team builder) refuses with a message.
+    this-or-that, rating, budget/team builder) refuses with a message.
     Existing posts keep working; this only blocks new ones.
   - required_role_id: when set, only members with that role can create
     posts. Leave unset to let anyone post.
